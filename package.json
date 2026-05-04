@@ -1,0 +1,24 @@
+{
+  "name": "capacity-planning-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Capacity and quota planning dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test",
+    "bench:placement-score": "node scripts/benchmark-placement-score.js"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.5.0",
+    "@azure/msal-node": "^2.16.2",
+    "connect-mssql-v2": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "express-session": "^1.18.1",
+    "mssql": "^11.0.1"
+  }
+}

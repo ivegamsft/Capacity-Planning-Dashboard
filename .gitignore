@@ -1,0 +1,73 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+app-logs/
+app-logs.zip
+app_logs/
+appservice-logs*/
+test-app-logs/
+test-current-logs*/
+artifacts/
+
+# Secrets / local config
+.env
+.env.*
+!.env.sample
+*.local
+*.secret
+secrets.*
+.last-ingest-key.txt
+
+# Build outputs
+dist/
+build/
+out/
+coverage/
+*.zip
+
+# Node modules
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# Copilot / GitHub / Squad (local only)
+.copilot/
+.github/
+.squad/
+
+# Local-only docs (not tracked in git)
+.localdocs/
+
+# Local debug markers
+tools/Get-AzVMAvailability/TEST_MARKER.txt
+
+# Terraform/Bicep local artifacts
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+.bicep/
+# Squad: SubSquad activation file (local to this machine)
+.squad-workstream
