@@ -2,7 +2,8 @@
 
 This repository contains the initial platform scaffold for a native Azure capacity planning solution.
 - Huge shout out to Zach Luz for builing out many of the API calls this solution utilizes in his repo: https://github.com/ZacharyLuz/Get-AzVMAvailability  
-<img width="1911" height="911" alt="image" src="https://github.com/user-attachments/assets/32814044-2e5f-4932-a6f0-bb89156aecc2" />
+<img width="1904" height="866" alt="image" src="https://github.com/user-attachments/assets/a0f79e91-9e06-4213-bfbd-d1d54865d7e6" />
+
 
 ## What is included now
 
