@@ -373,14 +373,6 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
           value: entraTenantId
         }
         {
-          name: 'AUTH_ENABLED'
-          value: string(authEnabled)
-        }
-        {
-          name: 'ENTRA_TENANT_ID'
-          value: entraTenantId
-        }
-        {
           name: 'ENTRA_CLIENT_ID'
           value: entraClientId
         }
