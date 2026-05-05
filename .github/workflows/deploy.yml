@@ -16,9 +16,9 @@ on:
           - prod
 
 env:
-  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-  AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  AZURE_WEBAPP_NAME: 'app-capdash-prod-prod01'
   AZURE_LOCATION: 'westus2'
 
 jobs:
@@ -43,15 +43,21 @@ jobs:
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
+    environment: production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -114,11 +120,11 @@ jobs:
           Write-Host "  Database: $sqlDatabaseName"
           
           # Execute bootstrap script
-          & ./scripts/bootstrap-sql-managed-identity.ps1 
-            -AppServiceName "${{ env.AZURE_WEBAPP_NAME }}" 
-            -SqlServerName $sqlServerName 
-            -SqlDatabaseName $sqlDatabaseName 
-            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" 
+          & ./scripts/bootstrap-sql-managed-identity.ps1 `
+            -AppServiceName "${{ env.AZURE_WEBAPP_NAME }}" `
+            -SqlServerName $sqlServerName `
+            -SqlDatabaseName $sqlDatabaseName `
+            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
             -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}"
 
       - name: Restart App Service
@@ -136,15 +142,21 @@ jobs:
 
   deploy-manual:
     runs-on: ubuntu-latest
+    environment: production
     if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -185,9 +197,9 @@ jobs:
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          app-name: 'app-capdash-prod-prod01'
           package: deployment.zip
-          resource-group: ${{ env.AZURE_RESOURCE_GROUP }}
+          resource-group: ${{ vars.AZURE_RESOURCE_GROUP }}
           slot-name: 'production'
 
       - name: Bootstrap SQL Database for Managed Identity
@@ -195,7 +207,7 @@ jobs:
         run: |
           # Extract SQL server and database names from resource naming pattern
           # Pattern: app-capdash-{environment}-{workloadSuffix}
-          $appName = "${{ env.AZURE_WEBAPP_NAME }}"
+          $appName = "app-capdash-prod-prod01"
           
           # Parse naming convention: app-capdash-PROD-PROD01
           $parts = $appName -split '-'
@@ -210,22 +222,22 @@ jobs:
           Write-Host "  Database: $sqlDatabaseName"
           
           # Execute bootstrap script
-          & ./scripts/bootstrap-sql-managed-identity.ps1 
-            -AppServiceName "${{ env.AZURE_WEBAPP_NAME }}" 
-            -SqlServerName $sqlServerName 
-            -SqlDatabaseName $sqlDatabaseName 
-            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" 
-            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}"
+          & ./scripts/bootstrap-sql-managed-identity.ps1 `
+            -AppServiceName "app-capdash-prod-prod01" `
+            -SqlServerName $sqlServerName `
+            -SqlDatabaseName $sqlDatabaseName `
+            -ResourceGroup "${{ vars.AZURE_RESOURCE_GROUP }}" `
+            -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}"
 
       - name: Restart App Service
         run: |
           az webapp restart \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ env.AZURE_WEBAPP_NAME }}
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --name app-capdash-prod-prod01
           echo "App restarted successfully"
 
       - name: Post-deployment verification
         run: |
           echo "Manual deployment to ${{ github.event.inputs.environment }} completed"
-          echo "App URL: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          echo "App URL: https://app-capdash-prod-prod01.azurewebsites.net"
           echo "SQL managed identity configured and app restarted"
