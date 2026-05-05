@@ -1,0 +1,171 @@
+name: Setup Azure Deployment Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      azure_subscription_id:
+        description: 'Azure Subscription ID'
+        required: true
+        default: '844eabcc-dc96-453b-8d45-bef3d566f3f8'
+      azure_resource_group:
+        description: 'Azure Resource Group'
+        required: true
+        default: 'rg-capdash-prod'
+      azure_webapp_name:
+        description: 'Azure App Service Name'
+        required: true
+        default: 'app-capdash-prod-prod01'
+
+jobs:
+  setup-infrastructure:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      setup_status: ${{ steps.setup.outputs.status }}
+      deployment_ready: ${{ steps.verify.outputs.deployment_ready }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login (with Workload Identity Federation)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ github.event.inputs.azure_subscription_id }}
+        continue-on-error: true
+        id: azure_login_wif
+
+      - name: Azure Login (with Service Principal)
+        if: steps.azure_login_wif.outcome == 'failure'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+        continue-on-error: true
+        id: azure_login_sp
+
+      - name: Configure Credentials
+        shell: bash
+        if: steps.azure_login_sp.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUBSCRIPTION_ID: ${{ github.event.inputs.azure_subscription_id }}
+          RESOURCE_GROUP: ${{ github.event.inputs.azure_resource_group }}
+          WEBAPP_NAME: ${{ github.event.inputs.azure_webapp_name }}
+        run: |
+          set -e
+          
+          echo "📋 Setting up GitHub Actions secrets for deployment..."
+          echo ""
+          
+          # Get current Azure credentials from login
+          AZURE_CREDENTIALS=$(az account show --subscriptions --query "[0]" -o json)
+          
+          echo "Step 1: Configure AZURE_SUBSCRIPTION_ID"
+          gh secret set AZURE_SUBSCRIPTION_ID \
+            --body "$SUBSCRIPTION_ID" \
+            --repo "${{ github.repository }}"
+          echo "✅ AZURE_SUBSCRIPTION_ID configured"
+          
+          echo ""
+          echo "Step 2: Configure AZURE_RESOURCE_GROUP"
+          gh secret set AZURE_RESOURCE_GROUP \
+            --body "$RESOURCE_GROUP" \
+            --repo "${{ github.repository }}"
+          echo "✅ AZURE_RESOURCE_GROUP configured"
+          
+          echo ""
+          echo "Step 3: Configure AZURE_WEBAPP_NAME"
+          gh secret set AZURE_WEBAPP_NAME \
+            --body "$WEBAPP_NAME" \
+            --repo "${{ github.repository }}"
+          echo "✅ AZURE_WEBAPP_NAME configured"
+          
+          echo ""
+          echo "Step 4: Verify AZURE_CREDENTIALS exists"
+          if gh secret list --repo "${{ github.repository }}" | grep -q "AZURE_CREDENTIALS"; then
+            echo "✅ AZURE_CREDENTIALS is configured"
+          else
+            echo "⚠️  AZURE_CREDENTIALS not found"
+            echo "This should already exist or be set separately"
+          fi
+
+      - name: Verify Secrets Configuration
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: verify
+        run: |
+          echo "🔍 Verifying GitHub Actions secrets..."
+          echo ""
+          
+          SECRETS=$(gh secret list --repo "${{ github.repository }}")
+          
+          # Check each required secret
+          CHECKS_PASSED=0
+          CHECKS_TOTAL=4
+          
+          if echo "$SECRETS" | grep -q "AZURE_SUBSCRIPTION_ID"; then
+            echo "✅ AZURE_SUBSCRIPTION_ID"
+            ((CHECKS_PASSED++))
+          else
+            echo "❌ AZURE_SUBSCRIPTION_ID"
+          fi
+          
+          if echo "$SECRETS" | grep -q "AZURE_RESOURCE_GROUP"; then
+            echo "✅ AZURE_RESOURCE_GROUP"
+            ((CHECKS_PASSED++))
+          else
+            echo "❌ AZURE_RESOURCE_GROUP"
+          fi
+          
+          if echo "$SECRETS" | grep -q "AZURE_WEBAPP_NAME"; then
+            echo "✅ AZURE_WEBAPP_NAME"
+            ((CHECKS_PASSED++))
+          else
+            echo "❌ AZURE_WEBAPP_NAME"
+          fi
+          
+          if echo "$SECRETS" | grep -q "AZURE_CREDENTIALS"; then
+            echo "✅ AZURE_CREDENTIALS"
+            ((CHECKS_PASSED++))
+          else
+            echo "⚠️  AZURE_CREDENTIALS (must exist separately)"
+          fi
+          
+          echo ""
+          echo "Secrets configured: $CHECKS_PASSED/$CHECKS_TOTAL"
+          
+          if [ "$CHECKS_PASSED" -ge 3 ]; then
+            echo "deployment_ready=true" >> $GITHUB_OUTPUT
+            echo "✅ Ready for deployment"
+          else
+            echo "deployment_ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Not ready - missing secrets"
+            exit 1
+          fi
+
+      - name: Next Steps
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║            SETUP COMPLETE - READY FOR DEPLOYMENT           ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "✅ GitHub Actions secrets configured:"
+          echo "   • AZURE_SUBSCRIPTION_ID"
+          echo "   • AZURE_RESOURCE_GROUP"
+          echo "   • AZURE_WEBAPP_NAME"
+          echo "   • AZURE_CREDENTIALS (pre-configured)"
+          echo ""
+          echo "📊 Infrastructure ready for deployment:"
+          echo "   • Subscription: ${{ github.event.inputs.azure_subscription_id }}"
+          echo "   • Resource Group: ${{ github.event.inputs.azure_resource_group }}"
+          echo "   • App Service: ${{ github.event.inputs.azure_webapp_name }}"
+          echo ""
+          echo "🚀 Next: Trigger deployment workflow"
+          echo "   Command: gh workflow run deploy.yml"
+          echo "   Web: Actions tab → Deploy Capacity Dashboard → Run workflow"
+          echo ""

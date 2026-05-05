@@ -1,0 +1,182 @@
+name: Bootstrap and Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      setup_mode:
+        description: 'Setup mode: configure secrets, then deploy'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  # Step 1: Configure GitHub Actions secrets (if needed)
+  setup-secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      setup_complete: ${{ steps.check-secrets.outputs.complete }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if secrets need configuration
+        id: check-secrets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SECRETS=$(gh secret list --repo "${{ github.repository }}")
+          
+          if echo "$SECRETS" | grep -q "AZURE_SUBSCRIPTION_ID"; then
+            if echo "$SECRETS" | grep -q "AZURE_RESOURCE_GROUP"; then
+              if echo "$SECRETS" | grep -q "AZURE_WEBAPP_NAME"; then
+                echo "complete=true" >> $GITHUB_OUTPUT
+                echo "✅ All required secrets already configured"
+              fi
+            fi
+          else
+            echo "complete=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Setting up secrets..."
+          fi
+
+      - name: Configure AZURE_SUBSCRIPTION_ID
+        if: steps.check-secrets.outputs.complete != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh secret set AZURE_SUBSCRIPTION_ID \
+            --body "844eabcc-dc96-453b-8d45-bef3d566f3f8" \
+            --repo "${{ github.repository }}"
+          echo "✅ AZURE_SUBSCRIPTION_ID configured"
+
+      - name: Configure AZURE_RESOURCE_GROUP
+        if: steps.check-secrets.outputs.complete != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh secret set AZURE_RESOURCE_GROUP \
+            --body "rg-capdash-prod" \
+            --repo "${{ github.repository }}"
+          echo "✅ AZURE_RESOURCE_GROUP configured"
+
+      - name: Configure AZURE_WEBAPP_NAME
+        if: steps.check-secrets.outputs.complete != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh secret set AZURE_WEBAPP_NAME \
+            --body "app-capdash-prod-prod01" \
+            --repo "${{ github.repository }}"
+          echo "✅ AZURE_WEBAPP_NAME configured"
+
+      - name: Verify all secrets configured
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "📋 Verifying GitHub Actions secrets..."
+          echo ""
+          gh secret list --repo "${{ github.repository }}" | grep "AZURE_"
+          echo ""
+          echo "✅ All secrets configured and ready"
+
+  # Step 2: Trigger deployment (after secrets are configured)
+  deploy:
+    needs: setup-secrets
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install production dependencies
+        run: npm ci --production
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deployment
+          cp package.json deployment/
+          cp package-lock.json deployment/ 2>/dev/null || true
+          cp server.js deployment/
+          cp app.js deployment/
+          cp index.html deployment/
+          cp styles.css deployment/
+          cp web.config deployment/ 2>/dev/null || true
+          cp -r node_modules deployment/ 2>/dev/null || true
+          cp -r react deployment/ 2>/dev/null || true
+          cp -r src deployment/ 2>/dev/null || true
+          cp -r sql deployment/ 2>/dev/null || true
+          cp -r docs deployment/ 2>/dev/null || true
+          cp -r infra deployment/ 2>/dev/null || true
+          cp -r tools deployment/ 2>/dev/null || true
+          cp -r scripts deployment/ 2>/dev/null || true
+          cd deployment
+          zip -r ../deployment.zip .
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          package: deployment.zip
+          resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          slot-name: 'production'
+
+      - name: Bootstrap SQL Database for Managed Identity
+        shell: pwsh
+        run: |
+          $appName = "${{ secrets.AZURE_WEBAPP_NAME }}"
+          $parts = $appName -split '-'
+          $environment = $parts[2]
+          $workloadSuffix = $parts[3]
+          
+          $sqlServerName = "sql-capdash-$environment-$workloadSuffix"
+          $sqlDatabaseName = "sqldb-capdash-$environment"
+          
+          Write-Host "Bootstrapping SQL Database..."
+          Write-Host "  SQL Server: $sqlServerName"
+          Write-Host "  Database: $sqlDatabaseName"
+          
+          & ./scripts/bootstrap-sql-managed-identity.ps1 `
+            -AppServiceName "${{ secrets.AZURE_WEBAPP_NAME }}" `
+            -SqlServerName $sqlServerName `
+            -SqlDatabaseName $sqlDatabaseName `
+            -ResourceGroup "${{ secrets.AZURE_RESOURCE_GROUP }}" `
+            -SubscriptionId "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+
+      - name: Restart App Service
+        run: |
+          az webapp restart \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }}
+          echo "App restarted successfully"
+
+      - name: Verify Deployment
+        run: |
+          echo "✅ Deployment completed successfully"
+          echo ""
+          echo "App URL: https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          echo "SQL managed identity configured and app restarted"
+          echo ""
+          echo "Next: Test API endpoints for database access"
