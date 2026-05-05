@@ -82,6 +82,7 @@ jobs:
           cp -r docs deployment/ 2>/dev/null || true
           cp -r infra deployment/ 2>/dev/null || true
           cp -r tools deployment/ 2>/dev/null || true
+          cp -r scripts deployment/ 2>/dev/null || true
           cd deployment
           zip -r ../deployment.zip .
 
@@ -93,10 +94,45 @@ jobs:
           resource-group: ${{ env.AZURE_RESOURCE_GROUP }}
           slot-name: 'production'
 
+      - name: Bootstrap SQL Database for Managed Identity
+        shell: pwsh
+        run: |
+          # Extract SQL server and database names from resource naming pattern
+          # Pattern: app-capdash-{environment}-{workloadSuffix}
+          $appName = "${{ env.AZURE_WEBAPP_NAME }}"
+          
+          # Parse naming convention: app-capdash-PROD-PROD01
+          $parts = $appName -split '-'
+          $environment = $parts[2]  # 'prod'
+          $workloadSuffix = $parts[3]  # 'prod01'
+          
+          $sqlServerName = "sql-capdash-$environment-$workloadSuffix"
+          $sqlDatabaseName = "sqldb-capdash-$environment"
+          
+          Write-Host "Bootstrapping SQL Database..."
+          Write-Host "  SQL Server: $sqlServerName"
+          Write-Host "  Database: $sqlDatabaseName"
+          
+          # Execute bootstrap script
+          & ./scripts/bootstrap-sql-managed-identity.ps1 
+            -AppServiceName "${{ env.AZURE_WEBAPP_NAME }}" 
+            -SqlServerName $sqlServerName 
+            -SqlDatabaseName $sqlDatabaseName 
+            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" 
+            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}"
+
+      - name: Restart App Service
+        run: |
+          az webapp restart \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.AZURE_WEBAPP_NAME }}
+          echo "App restarted successfully"
+
       - name: Verify deployment
         run: |
           echo "Deployment completed successfully"
           echo "App URL: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          echo "SQL managed identity configured and app restarted"
 
   deploy-manual:
     runs-on: ubuntu-latest
@@ -142,6 +178,7 @@ jobs:
           cp -r docs deployment/ 2>/dev/null || true
           cp -r infra deployment/ 2>/dev/null || true
           cp -r tools deployment/ 2>/dev/null || true
+          cp -r scripts deployment/ 2>/dev/null || true
           cd deployment
           zip -r ../deployment.zip .
 
@@ -153,7 +190,42 @@ jobs:
           resource-group: ${{ env.AZURE_RESOURCE_GROUP }}
           slot-name: 'production'
 
+      - name: Bootstrap SQL Database for Managed Identity
+        shell: pwsh
+        run: |
+          # Extract SQL server and database names from resource naming pattern
+          # Pattern: app-capdash-{environment}-{workloadSuffix}
+          $appName = "${{ env.AZURE_WEBAPP_NAME }}"
+          
+          # Parse naming convention: app-capdash-PROD-PROD01
+          $parts = $appName -split '-'
+          $environment = $parts[2]  # 'prod'
+          $workloadSuffix = $parts[3]  # 'prod01'
+          
+          $sqlServerName = "sql-capdash-$environment-$workloadSuffix"
+          $sqlDatabaseName = "sqldb-capdash-$environment"
+          
+          Write-Host "Bootstrapping SQL Database..."
+          Write-Host "  SQL Server: $sqlServerName"
+          Write-Host "  Database: $sqlDatabaseName"
+          
+          # Execute bootstrap script
+          & ./scripts/bootstrap-sql-managed-identity.ps1 
+            -AppServiceName "${{ env.AZURE_WEBAPP_NAME }}" 
+            -SqlServerName $sqlServerName 
+            -SqlDatabaseName $sqlDatabaseName 
+            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" 
+            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}"
+
+      - name: Restart App Service
+        run: |
+          az webapp restart \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.AZURE_WEBAPP_NAME }}
+          echo "App restarted successfully"
+
       - name: Post-deployment verification
         run: |
           echo "Manual deployment to ${{ github.event.inputs.environment }} completed"
           echo "App URL: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          echo "SQL managed identity configured and app restarted"
