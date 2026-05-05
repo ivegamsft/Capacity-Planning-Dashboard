@@ -256,6 +256,28 @@ The repository includes fully automated deployment workflows that use **GitHub W
 - Azure CLI and GitHub CLI installed locally
 - Both authenticated: `az login` and `gh auth login`
 
+### First Deployment Checklist (Required One-Time Setup)
+
+Before triggering the deployment workflow for the first time, ensure the following:
+
+- [ ] **Run OIDC Bootstrap** - `.\scripts\bootstrap-github-oidc.ps1`
+  - Creates Azure service principal for GitHub OIDC
+  - Configures federated credentials
+  - Sets GitHub environment variables
+  
+- [ ] **Check Conditional Access Policy** - `.\scripts\bootstrap-ca-policy.ps1 -Mode check`
+  - Diagnoses if CA policies block deployments (AADSTS53003 error)
+  - Provides remediation steps if issues found
+  
+- [ ] **Fix CA Policy (if needed)** - `.\scripts\bootstrap-ca-policy.ps1 -Mode exempt`
+  - Either follow manual remediation steps or
+  - Run with `-Mode create-exception` for guided policy creation
+  - Admin approval may be required
+  
+- [ ] **Verify OIDC Setup** - `.\scripts\bootstrap-ca-policy.ps1 -Mode verify`
+  - Tests GitHub token exchange with Azure AD
+  - Confirms service principal has required roles
+
 ### Complete Bootstrap & Deployment Workflow
 
 **Recommended: Use the orchestration script that handles everything:**

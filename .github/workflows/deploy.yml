@@ -119,26 +119,67 @@ jobs:
           Write-Host "  SQL Server: $sqlServerName"
           Write-Host "  Database: $sqlDatabaseName"
           
-          # Execute bootstrap script
-          & ./scripts/bootstrap-sql-managed-identity.ps1 `
-            -AppServiceName "${{ env.AZURE_WEBAPP_NAME }}" `
-            -SqlServerName $sqlServerName `
-            -SqlDatabaseName $sqlDatabaseName `
-            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
-            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}"
+          # Execute bootstrap script with error handling
+          try {
+            & ./scripts/bootstrap-sql-managed-identity.ps1 `
+              -AppServiceName "${{ env.AZURE_WEBAPP_NAME }}" `
+              -SqlServerName $sqlServerName `
+              -SqlDatabaseName $sqlDatabaseName `
+              -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
+              -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}"
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "ERROR: SQL bootstrap script failed with exit code $LASTEXITCODE" -ForegroundColor Red
+              exit 1
+            }
+            Write-Host "✓ SQL bootstrap completed successfully" -ForegroundColor Green
+          }
+          catch {
+            Write-Host "ERROR: SQL bootstrap failed - $_" -ForegroundColor Red
+            exit 1
+          }
 
       - name: Restart App Service
         run: |
           az webapp restart \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ env.AZURE_WEBAPP_NAME }}
-          echo "App restarted successfully"
+          echo "✓ App restarted successfully"
+
+      - name: Wait for App Service to be ready
+        shell: pwsh
+        run: |
+          $appUrl = "https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          $maxAttempts = 30
+          $attempt = 0
+          
+          Write-Host "Waiting for app to be responsive at $appUrl..."
+          
+          while ($attempt -lt $maxAttempts) {
+            try {
+              $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing -ErrorAction Stop
+              if ($response.StatusCode -eq 200) {
+                Write-Host "✓ App is responsive (HTTP $($response.StatusCode))" -ForegroundColor Green
+                exit 0
+              }
+            }
+            catch {
+              $attempt++
+              if ($attempt -lt $maxAttempts) {
+                Write-Host "Attempt $attempt/$maxAttempts: App not ready yet, retrying in 2 seconds..."
+                Start-Sleep -Seconds 2
+              }
+            }
+          }
+          
+          Write-Host "ERROR: App did not become responsive after $maxAttempts attempts" -ForegroundColor Red
+          exit 1
 
       - name: Verify deployment
         run: |
-          echo "Deployment completed successfully"
+          echo "✓ Deployment completed successfully"
           echo "App URL: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
-          echo "SQL managed identity configured and app restarted"
+          echo "SQL managed identity configured and app is running"
 
   deploy-manual:
     runs-on: ubuntu-latest
@@ -221,23 +262,64 @@ jobs:
           Write-Host "  SQL Server: $sqlServerName"
           Write-Host "  Database: $sqlDatabaseName"
           
-          # Execute bootstrap script
-          & ./scripts/bootstrap-sql-managed-identity.ps1 `
-            -AppServiceName "app-capdash-prod-prod01" `
-            -SqlServerName $sqlServerName `
-            -SqlDatabaseName $sqlDatabaseName `
-            -ResourceGroup "${{ vars.AZURE_RESOURCE_GROUP }}" `
-            -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+          # Execute bootstrap script with error handling
+          try {
+            & ./scripts/bootstrap-sql-managed-identity.ps1 `
+              -AppServiceName "app-capdash-prod-prod01" `
+              -SqlServerName $sqlServerName `
+              -SqlDatabaseName $sqlDatabaseName `
+              -ResourceGroup "${{ vars.AZURE_RESOURCE_GROUP }}" `
+              -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "ERROR: SQL bootstrap script failed with exit code $LASTEXITCODE" -ForegroundColor Red
+              exit 1
+            }
+            Write-Host "✓ SQL bootstrap completed successfully" -ForegroundColor Green
+          }
+          catch {
+            Write-Host "ERROR: SQL bootstrap failed - $_" -ForegroundColor Red
+            exit 1
+          }
 
       - name: Restart App Service
         run: |
           az webapp restart \
             --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
             --name app-capdash-prod-prod01
-          echo "App restarted successfully"
+          echo "✓ App restarted successfully"
+
+      - name: Wait for App Service to be ready
+        shell: pwsh
+        run: |
+          $appUrl = "https://app-capdash-prod-prod01.azurewebsites.net"
+          $maxAttempts = 30
+          $attempt = 0
+          
+          Write-Host "Waiting for app to be responsive at $appUrl..."
+          
+          while ($attempt -lt $maxAttempts) {
+            try {
+              $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing -ErrorAction Stop
+              if ($response.StatusCode -eq 200) {
+                Write-Host "✓ App is responsive (HTTP $($response.StatusCode))" -ForegroundColor Green
+                exit 0
+              }
+            }
+            catch {
+              $attempt++
+              if ($attempt -lt $maxAttempts) {
+                Write-Host "Attempt $attempt/$maxAttempts: App not ready yet, retrying in 2 seconds..."
+                Start-Sleep -Seconds 2
+              }
+            }
+          }
+          
+          Write-Host "ERROR: App did not become responsive after $maxAttempts attempts" -ForegroundColor Red
+          exit 1
 
       - name: Post-deployment verification
         run: |
-          echo "Manual deployment to ${{ github.event.inputs.environment }} completed"
+          echo "✓ Manual deployment to ${{ github.event.inputs.environment }} completed"
           echo "App URL: https://app-capdash-prod-prod01.azurewebsites.net"
-          echo "SQL managed identity configured and app restarted"
+          echo "SQL managed identity configured and app is running"
