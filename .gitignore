@@ -45,6 +45,7 @@ __pycache__/
 # Copilot / GitHub / Squad (local only)
 .copilot/
 .github/
+!.github/workflows/
 .squad/
 
 # Local-only docs (not tracked in git)
