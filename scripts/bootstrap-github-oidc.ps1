@@ -311,9 +311,9 @@ Write-Host "    steps:" -ForegroundColor $COLORS.Dim
 Write-Host "      - name: Azure Login" -ForegroundColor $COLORS.Dim
 Write-Host "        uses: azure/login@v1" -ForegroundColor $COLORS.Dim
 Write-Host "        with:" -ForegroundColor $COLORS.Dim
-Write-Host "          client-id: \${{ vars.AZURE_CLIENT_ID }}" -ForegroundColor $COLORS.Dim
-Write-Host "          tenant-id: \${{ vars.AZURE_TENANT_ID }}" -ForegroundColor $COLORS.Dim
-Write-Host "          subscription-id: \${{ vars.AZURE_SUBSCRIPTION_ID }}" -ForegroundColor $COLORS.Dim
+Write-Host '          client-id: ${ vars.AZURE_CLIENT_ID }' -ForegroundColor $COLORS.Dim
+Write-Host '          tenant-id: ${ vars.AZURE_TENANT_ID }' -ForegroundColor $COLORS.Dim
+Write-Host '          subscription-id: ${ vars.AZURE_SUBSCRIPTION_ID }' -ForegroundColor $COLORS.Dim
 Write-Host ""
 
 # ============================================================================
@@ -357,9 +357,9 @@ Write-Host ""
 Write-Host "      - name: Azure Login" -ForegroundColor $COLORS.Dim
 Write-Host "        uses: azure/login@v1" -ForegroundColor $COLORS.Dim
 Write-Host "        with:" -ForegroundColor $COLORS.Dim
-Write-Host "          client-id: \${{ vars.AZURE_CLIENT_ID }}" -ForegroundColor $COLORS.Dim
-Write-Host "          tenant-id: \${{ vars.AZURE_TENANT_ID }}" -ForegroundColor $COLORS.Dim
-Write-Host "          subscription-id: \${{ vars.AZURE_SUBSCRIPTION_ID }}" -ForegroundColor $COLORS.Dim
+Write-Host '          client-id: ${ vars.AZURE_CLIENT_ID }' -ForegroundColor $COLORS.Dim
+Write-Host '          tenant-id: ${ vars.AZURE_TENANT_ID }' -ForegroundColor $COLORS.Dim
+Write-Host '          subscription-id: ${ vars.AZURE_SUBSCRIPTION_ID }' -ForegroundColor $COLORS.Dim
 Write-Host ""
 Write-Host "      - name: Test Azure CLI" -ForegroundColor $COLORS.Dim
 Write-Host "        run: az account show" -ForegroundColor $COLORS.Dim
@@ -406,9 +406,9 @@ Write-Host ""
 Write-Host "2. Update Azure Login action:"
 Write-Host "   - uses: azure/login@v1"
 Write-Host "     with:"
-Write-Host "       client-id: \${{ vars.AZURE_CLIENT_ID }}"
-Write-Host "       tenant-id: \${{ vars.AZURE_TENANT_ID }}"
-Write-Host "       subscription-id: \${{ vars.AZURE_SUBSCRIPTION_ID }}"
+Write-Host '       client-id: ${ vars.AZURE_CLIENT_ID }'
+Write-Host '       tenant-id: ${ vars.AZURE_TENANT_ID }'
+Write-Host '       subscription-id: ${ vars.AZURE_SUBSCRIPTION_ID }'
 Write-Host ""
 Write-Host "3. Remove AZURE_CREDENTIALS secret (no longer needed)"
 Write-Host "   gh secret delete AZURE_CREDENTIALS --repo $repo"
