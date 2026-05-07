@@ -108,6 +108,25 @@ jobs:
             | sudo tar -xj -C /usr/local/bin sqlcmd
           sqlcmd --version
 
+      - name: Open SQL firewall for deployment
+        run: |
+          SQL_SERVER="sql-capdash-prod-prod01"
+          RUNNER_IP=$(curl -sSL https://api.ipify.org)
+          echo "Runner IP: $RUNNER_IP"
+          az sql server update \
+            --name $SQL_SERVER \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --set publicNetworkAccess=Enabled \
+            --output none
+          az sql server firewall-rule create \
+            --name github-actions-temp \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --server $SQL_SERVER \
+            --start-ip-address $RUNNER_IP \
+            --end-ip-address $RUNNER_IP \
+            --output none
+          echo "✓ SQL firewall opened for $RUNNER_IP"
+
       - name: Bootstrap SQL Database for Managed Identity
         shell: pwsh
         run: |
@@ -146,6 +165,22 @@ jobs:
             Write-Host "ERROR: SQL bootstrap failed - $_" -ForegroundColor Red
             exit 1
           }
+
+      - name: Close SQL firewall after deployment
+        if: always()
+        run: |
+          SQL_SERVER="sql-capdash-prod-prod01"
+          az sql server firewall-rule delete \
+            --name github-actions-temp \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --server $SQL_SERVER \
+            --output none 2>/dev/null || true
+          az sql server update \
+            --name $SQL_SERVER \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --set publicNetworkAccess=Disabled \
+            --output none
+          echo "✓ SQL firewall closed"
 
       - name: Restart App Service
         run: |
@@ -259,6 +294,25 @@ jobs:
             | sudo tar -xj -C /usr/local/bin sqlcmd
           sqlcmd --version
 
+      - name: Open SQL firewall for deployment
+        run: |
+          SQL_SERVER="sql-capdash-prod-prod01"
+          RUNNER_IP=$(curl -sSL https://api.ipify.org)
+          echo "Runner IP: $RUNNER_IP"
+          az sql server update \
+            --name $SQL_SERVER \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --set publicNetworkAccess=Enabled \
+            --output none
+          az sql server firewall-rule create \
+            --name github-actions-temp \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --server $SQL_SERVER \
+            --start-ip-address $RUNNER_IP \
+            --end-ip-address $RUNNER_IP \
+            --output none
+          echo "✓ SQL firewall opened for $RUNNER_IP"
+
       - name: Bootstrap SQL Database for Managed Identity
         shell: pwsh
         run: |
@@ -297,6 +351,22 @@ jobs:
             Write-Host "ERROR: SQL bootstrap failed - $_" -ForegroundColor Red
             exit 1
           }
+
+      - name: Close SQL firewall after deployment
+        if: always()
+        run: |
+          SQL_SERVER="sql-capdash-prod-prod01"
+          az sql server firewall-rule delete \
+            --name github-actions-temp \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --server $SQL_SERVER \
+            --output none 2>/dev/null || true
+          az sql server update \
+            --name $SQL_SERVER \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --set publicNetworkAccess=Disabled \
+            --output none
+          echo "✓ SQL firewall closed"
 
       - name: Restart App Service
         run: |
