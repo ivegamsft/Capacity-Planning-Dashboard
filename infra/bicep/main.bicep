@@ -535,6 +535,12 @@ module existingKeyVaultSecrets './modules/keyvault-secrets.bicep' = if (useExist
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = if (!useExistingSqlServer) {
   name: sqlServerName
   location: location
+  // System-assigned identity is required so the SQL server can resolve
+  // Azure AD / Entra identities when creating contained database users
+  // via CREATE USER ... FROM EXTERNAL PROVIDER (Directory Readers role needed).
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     administrators: {
       administratorType: 'ActiveDirectory'

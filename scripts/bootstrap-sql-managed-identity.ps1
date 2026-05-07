@@ -7,8 +7,14 @@
     This script is executed as part of the deployment workflow (GitHub Actions).
     It configures the database for the App Service managed identity by:
     1. Authenticating to Azure using Azure CLI
-    2. Executing SQL initialization script against the database
-    3. Granting necessary roles to the managed identity
+    2. Ensuring the SQL server has a system-assigned managed identity with Directory Readers
+    3. Executing SQL initialization script against the database
+    4. Granting necessary roles to the managed identity
+
+    The Directory Readers step requires the caller to have the Privileged Role Administrator
+    or Global Administrator role in Azure AD. In CI/CD, if that permission is absent, the
+    script emits a warning and continues — the SQL step will fail until Directory Readers is
+    assigned manually (or via the bootstrap-github-oidc.ps1 pre-flight script).
 
 .PARAMETER AppServiceName
     Name of the App Service with the managed identity (e.g., app-capdash-prod-prod01)
@@ -79,6 +85,80 @@ Write-Host ""
 Write-Host "Setting subscription context..." -ForegroundColor Cyan
 az account set --subscription $SubscriptionId
 Write-Host "✓ Subscription set to $SubscriptionId" -ForegroundColor Green
+
+# ── Step 1: Ensure SQL server has a system-assigned managed identity ──────────
+# Required for CREATE USER ... FROM EXTERNAL PROVIDER to resolve Entra identities.
+# Reference: https://aka.ms/sqlaadsetup
+Write-Host ""
+Write-Host "Checking SQL server managed identity..." -ForegroundColor Cyan
+$sqlServerJson = az sql server show `
+    --resource-group $ResourceGroup `
+    --name $SqlServerName `
+    --query "identity" -o json 2>&1 | ConvertFrom-Json
+
+if ($null -eq $sqlServerJson -or $sqlServerJson.type -notmatch "SystemAssigned") {
+    Write-Host "  Enabling system-assigned managed identity on SQL server..." -ForegroundColor Yellow
+    az sql server update `
+        --name $SqlServerName `
+        --resource-group $ResourceGroup `
+        -i `
+        --output none
+    $sqlServerJson = az sql server show `
+        --resource-group $ResourceGroup `
+        --name $SqlServerName `
+        --query "identity" -o json 2>&1 | ConvertFrom-Json
+    Write-Host "✓ Managed identity enabled: $($sqlServerJson.principalId)" -ForegroundColor Green
+} else {
+    Write-Host "✓ Managed identity already set: $($sqlServerJson.principalId)" -ForegroundColor Green
+}
+
+$sqlMIPrincipalId = $sqlServerJson.principalId
+
+# ── Step 2: Ensure SQL server MI has the Directory Readers Azure AD role ──────
+# Without this, FROM EXTERNAL PROVIDER queries fail with "Server identity is not configured."
+Write-Host ""
+Write-Host "Checking Directory Readers role membership..." -ForegroundColor Cyan
+
+# Find the Directory Readers role object ID
+$dirReadersRoleResp = az rest --method GET `
+    --url "https://graph.microsoft.com/v1.0/directoryRoles?`$filter=displayName eq 'Directory Readers'" `
+    -o json 2>&1 | ConvertFrom-Json
+
+if ($null -ne $dirReadersRoleResp -and $dirReadersRoleResp.value.Count -gt 0) {
+    $dirReadersRoleId = $dirReadersRoleResp.value[0].id
+    
+    $membersResp = az rest --method GET `
+        --url "https://graph.microsoft.com/v1.0/directoryRoles/$dirReadersRoleId/members?`$select=id" `
+        -o json 2>&1 | ConvertFrom-Json
+
+    $alreadyMember = $membersResp.value | Where-Object { $_.id -eq $sqlMIPrincipalId }
+
+    if ($alreadyMember) {
+        Write-Host "✓ SQL server MI already has Directory Readers role" -ForegroundColor Green
+    } else {
+        Write-Host "  Adding SQL server MI to Directory Readers..." -ForegroundColor Yellow
+        $tempFile = [System.IO.Path]::GetTempFileName() + ".json"
+        "{`"@odata.id`": `"https://graph.microsoft.com/v1.0/directoryObjects/$sqlMIPrincipalId`"}" `
+            | Out-File -FilePath $tempFile -Encoding utf8 -NoNewline
+        
+        $addResult = az rest --method POST `
+            --url "https://graph.microsoft.com/v1.0/directoryRoles/$dirReadersRoleId/members/`$ref" `
+            --body "@$tempFile" `
+            --headers "Content-Type=application/json" 2>&1
+        
+        Remove-Item $tempFile -ErrorAction SilentlyContinue
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✓ SQL server MI added to Directory Readers" -ForegroundColor Green
+        } else {
+            Write-Host "⚠  Could not assign Directory Readers automatically (Graph permission may be absent)." -ForegroundColor Yellow
+            Write-Host "   Manually add principal '$sqlMIPrincipalId' to the Directory Readers role in Entra." -ForegroundColor Yellow
+            Write-Host "   SQL bootstrap will proceed but may fail if the role is not yet assigned." -ForegroundColor Yellow
+        }
+    }
+} else {
+    Write-Host "⚠  Could not query Directory Readers role. Proceeding — ensure the role is assigned manually." -ForegroundColor Yellow
+}
 
 # Check if SQL Server and database exist
 Write-Host ""
