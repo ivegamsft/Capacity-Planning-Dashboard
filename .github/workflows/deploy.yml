@@ -101,11 +101,11 @@ jobs:
 
       - name: Install sqlcmd
         run: |
-          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-          curl -sSL "https://packages.microsoft.com/config/ubuntu/22.04/prod.list" | sudo tee /etc/apt/sources.list.d/msprod.list
-          sudo apt-get update -qq
-          ACCEPT_EULA=Y sudo apt-get install -y -qq mssql-tools18
-          echo "/opt/mssql-tools18/bin" >> $GITHUB_PATH
+          # Install go-sqlcmd (supports ActiveDirectoryDefault auth for CI/CD)
+          LATEST_URL=$(curl -sSL https://api.github.com/repos/microsoft/go-sqlcmd/releases/latest \
+            | python3 -c "import sys,json;r=json.load(sys.stdin);print(next(a['browser_download_url'] for a in r['assets'] if 'linux_amd64' in a['name'] and a['name'].endswith('.tar.bz2')))")
+          curl -sSL "$LATEST_URL" | sudo tar -xj -C /usr/local/bin sqlcmd
+          sqlcmd --version
 
       - name: Bootstrap SQL Database for Managed Identity
         shell: pwsh
@@ -251,11 +251,11 @@ jobs:
 
       - name: Install sqlcmd
         run: |
-          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-          curl -sSL "https://packages.microsoft.com/config/ubuntu/22.04/prod.list" | sudo tee /etc/apt/sources.list.d/msprod.list
-          sudo apt-get update -qq
-          ACCEPT_EULA=Y sudo apt-get install -y -qq mssql-tools18
-          echo "/opt/mssql-tools18/bin" >> $GITHUB_PATH
+          # Install go-sqlcmd (supports ActiveDirectoryDefault auth for CI/CD)
+          LATEST_URL=$(curl -sSL https://api.github.com/repos/microsoft/go-sqlcmd/releases/latest \
+            | python3 -c "import sys,json;r=json.load(sys.stdin);print(next(a['browser_download_url'] for a in r['assets'] if 'linux_amd64' in a['name'] and a['name'].endswith('.tar.bz2')))")
+          curl -sSL "$LATEST_URL" | sudo tar -xj -C /usr/local/bin sqlcmd
+          sqlcmd --version
 
       - name: Bootstrap SQL Database for Managed Identity
         shell: pwsh

@@ -115,18 +115,18 @@ $tempSqlFile = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.sql'
 $sqlScript | Out-File -FilePath $tempSqlFile -Encoding UTF8 -Force
 Write-Host "✓ SQL script prepared (temp file: $tempSqlFile)" -ForegroundColor Green
 
-# Execute SQL script using sqlcmd with Azure AD authentication
+# Execute SQL script using sqlcmd with Azure AD token authentication
 Write-Host ""
 Write-Host "Executing SQL script against database..." -ForegroundColor Cyan
 Write-Host "  Server: $SqlServerName.database.windows.net"
 Write-Host "  Database: $SqlDatabaseName"
 
 try {
-    # Use sqlcmd with Azure AD integrated authentication
+    # Use go-sqlcmd with ActiveDirectoryDefault auth (uses Azure CLI token - works in CI/CD)
     $cmdArgs = @(
-        "-S", "$SqlServerName.database.windows.net"
+        "-S", "tcp:$SqlServerName.database.windows.net,1433"
         "-d", $SqlDatabaseName
-        "-G"  # Use Azure AD integrated auth
+        "--authentication-method=ActiveDirectoryDefault"
         "-i", $tempSqlFile
         "-b"  # Batch mode - exit on error
     )
