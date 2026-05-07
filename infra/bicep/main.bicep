@@ -370,26 +370,17 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
           name: 'AUTH_ENABLED'
           value: string(authEnabled)
         }
-        {
-          name: 'ENTRA_TENANT_ID'
-          value: entraTenantId
-        }
-        {
-          name: 'ENTRA_CLIENT_ID'
-          value: entraClientId
-        }
-        {
-          name: 'ENTRA_CLIENT_SECRET'
-          value: entraClientSecretKeyVaultReference
-        }
+        // Only emit ENTRA_* and ADMIN_GROUP_ID when the param is non-empty so that
+        // running `az deployment group create` without these params does not wipe
+        // the live values that were set outside of Bicep (e.g. via deploy.yml).
+        ...(!empty(entraTenantId) ? [{ name: 'ENTRA_TENANT_ID', value: entraTenantId }] : [])
+        ...(!empty(entraClientId) ? [{ name: 'ENTRA_CLIENT_ID', value: entraClientId }] : [])
+        ...(!empty(entraClientSecretKeyVaultReference) ? [{ name: 'ENTRA_CLIENT_SECRET', value: entraClientSecretKeyVaultReference }] : [])
         {
           name: 'AUTH_REDIRECT_URI'
           value: effectiveAuthRedirectUri
         }
-        {
-          name: 'ADMIN_GROUP_ID'
-          value: adminGroupId
-        }
+        ...(!empty(adminGroupId) ? [{ name: 'ADMIN_GROUP_ID', value: adminGroupId }] : [])
         {
           name: 'REACT_PROTOTYPE_ENABLED'
           value: 'true'
