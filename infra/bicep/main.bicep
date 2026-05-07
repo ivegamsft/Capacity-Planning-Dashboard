@@ -301,6 +301,7 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
+      alwaysOn: true
       appSettings: [
         {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
@@ -539,7 +540,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = if (!useExisting
       administratorType: 'ActiveDirectory'
       azureADOnlyAuthentication: true
       login: sqlEntraAdminLogin
-      principalType: 'User'
+      principalType: 'Group'
       sid: sqlEntraAdminObjectId
       tenantId: tenant().tenantId
     }

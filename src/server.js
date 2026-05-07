@@ -1,3 +1,10 @@
+// Initialize Application Insights before any other requires so that
+// auto-instrumentation captures HTTP requests, SQL dependencies, and exceptions.
+if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
+  const appInsights = require('applicationinsights');
+  appInsights.setup().setAutoCollectConsole(true, true).start();
+}
+
 const express = require('express');
 const cors = require('cors');
 const { randomUUID } = require('crypto');

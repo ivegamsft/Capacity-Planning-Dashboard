@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "12867441080284439969"
+      "templateHash": "8728411285117597710"
     }
   },
   "parameters": {
@@ -304,8 +304,10 @@
     "effectiveSqlServerName": "[if(variables('useExistingSqlServer'), parameters('existingSqlServerName'), variables('sqlServerName'))]",
     "effectiveSqlDatabaseName": "[if(variables('useExistingSqlDatabase'), parameters('existingSqlDatabaseName'), variables('sqlDatabaseName'))]",
     "effectiveSqlServerFqdn": "[if(contains(variables('effectiveSqlServerName'), '.'), variables('effectiveSqlServerName'), format('{0}{1}', variables('effectiveSqlServerName'), environment().suffixes.sqlServerHostname))]",
+    "effectiveSqlServerId": "[resourceId(variables('effectiveSqlServerResourceGroupName'), 'Microsoft.Sql/servers', variables('effectiveSqlServerName'))]",
     "effectiveKeyVaultResourceGroupName": "[if(empty(parameters('existingKeyVaultResourceGroupName')), resourceGroup().name, parameters('existingKeyVaultResourceGroupName'))]",
     "effectiveKeyVaultName": "[if(variables('useExistingKeyVault'), parameters('existingKeyVaultName'), variables('keyVaultName'))]",
+    "effectiveKeyVaultId": "[resourceId(variables('effectiveKeyVaultResourceGroupName'), 'Microsoft.KeyVault/vaults', variables('effectiveKeyVaultName'))]",
     "effectiveKeyVaultUri": "[format('https://{0}.{1}/', variables('effectiveKeyVaultName'), variables('keyVaultDnsSuffix'))]",
     "effectiveWorkerStorageAccountResourceGroupName": "[if(empty(parameters('existingWorkerStorageAccountResourceGroupName')), resourceGroup().name, parameters('existingWorkerStorageAccountResourceGroupName'))]",
     "effectiveWorkerStorageAccountName": "[if(variables('useExistingWorkerStorageAccount'), parameters('existingWorkerStorageAccountName'), variables('functionStorageName'))]",
@@ -463,112 +465,8 @@
           "ftpsState": "Disabled",
           "minTlsVersion": "1.2",
           "http20Enabled": true,
-          "appSettings": [
-            {
-              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-              "value": "[reference('appInsights').ConnectionString]"
-            },
-            {
-              "name": "Dashboard__Mode",
-              "value": "MVP"
-            },
-            {
-              "name": "SQL_SERVER",
-              "value": "[variables('effectiveSqlServerFqdn')]"
-            },
-            {
-              "name": "SQL_DATABASE",
-              "value": "[variables('effectiveSqlDatabaseName')]"
-            },
-            {
-              "name": "SQL_AUTH_MODE",
-              "value": "managed-identity"
-            },
-            {
-              "name": "CAPACITY_WORKER_BASE_URL",
-              "value": "[format('https://{0}', reference('functionApp').defaultHostName)]"
-            },
-            {
-              "name": "CAPACITY_RECOMMEND_USE_DIRECT_API",
-              "value": "true"
-            },
-            {
-              "name": "CAPACITY_RECOMMEND_SUBSCRIPTION_ID",
-              "value": "[subscription().subscriptionId]"
-            },
-            {
-              "name": "CAPACITY_RECOMMEND_WORKER_TIMEOUT_MS",
-              "value": "180000"
-            },
-            {
-              "name": "CAPACITY_WORKER_SHARED_SECRET",
-              "value": "[variables('workerSharedSecretKeyVaultReference')]"
-            },
-            {
-              "name": "INGEST_API_KEY",
-              "value": "[variables('ingestApiKeyKeyVaultReference')]"
-            },
-            {
-              "name": "SESSION_SECRET",
-              "value": "[variables('sessionSecretKeyVaultReference')]"
-            },
-            {
-              "name": "QUOTA_MANAGEMENT_GROUP_ID",
-              "value": "[parameters('quotaManagementGroupId')]"
-            },
-            {
-              "name": "INGEST_MANAGEMENT_GROUP_NAMES",
-              "value": "[join(parameters('webReaderManagementGroupNames'), ',')]"
-            },
-            {
-              "name": "NODE_ENV",
-              "value": "production"
-            },
-            {
-              "name": "WEBSITE_NODE_DEFAULT_VERSION",
-              "value": "~20"
-            },
-            {
-              "name": "AUTH_ENABLED",
-              "value": "[string(parameters('authEnabled'))]"
-            },
-            {
-              "name": "ENTRA_TENANT_ID",
-              "value": "[parameters('entraTenantId')]"
-            },
-            {
-              "name": "ENTRA_CLIENT_ID",
-              "value": "[parameters('entraClientId')]"
-            },
-            {
-              "name": "ENTRA_CLIENT_SECRET",
-              "value": "[variables('entraClientSecretKeyVaultReference')]"
-            },
-            {
-              "name": "AUTH_REDIRECT_URI",
-              "value": "[variables('effectiveAuthRedirectUri')]"
-            },
-            {
-              "name": "ADMIN_GROUP_ID",
-              "value": "[parameters('adminGroupId')]"
-            },
-            {
-              "name": "SESSION_STORE_SQL_ENABLED",
-              "value": "[if(parameters('authEnabled'), 'true', 'false')]"
-            },
-            {
-              "name": "WEBSITE_DNS_SERVER",
-              "value": "168.63.129.16"
-            },
-            {
-              "name": "WEBSITE_VNET_ROUTE_ALL",
-              "value": "1"
-            },
-            {
-              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
-              "value": "true"
-            }
-          ]
+          "alwaysOn": true,
+          "appSettings": "[flatten(createArray(createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', reference('appInsights').ConnectionString), createObject('name', 'Dashboard__Mode', 'value', 'MVP'), createObject('name', 'SQL_SERVER', 'value', variables('effectiveSqlServerFqdn')), createObject('name', 'SQL_DATABASE', 'value', variables('effectiveSqlDatabaseName')), createObject('name', 'SQL_AUTH_MODE', 'value', 'managed-identity'), createObject('name', 'CAPACITY_WORKER_BASE_URL', 'value', format('https://{0}', reference('functionApp').defaultHostName)), createObject('name', 'CAPACITY_RECOMMEND_USE_DIRECT_API', 'value', 'true'), createObject('name', 'CAPACITY_RECOMMEND_SUBSCRIPTION_ID', 'value', subscription().subscriptionId), createObject('name', 'CAPACITY_RECOMMEND_WORKER_TIMEOUT_MS', 'value', '180000'), createObject('name', 'CAPACITY_WORKER_SHARED_SECRET', 'value', variables('workerSharedSecretKeyVaultReference')), createObject('name', 'INGEST_API_KEY', 'value', variables('ingestApiKeyKeyVaultReference')), createObject('name', 'SESSION_SECRET', 'value', variables('sessionSecretKeyVaultReference')), createObject('name', 'QUOTA_MANAGEMENT_GROUP_ID', 'value', parameters('quotaManagementGroupId')), createObject('name', 'INGEST_MANAGEMENT_GROUP_NAMES', 'value', join(parameters('webReaderManagementGroupNames'), ',')), createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', '~20'), createObject('name', 'AUTH_ENABLED', 'value', string(parameters('authEnabled')))), if(not(empty(parameters('entraTenantId'))), createArray(createObject('name', 'ENTRA_TENANT_ID', 'value', parameters('entraTenantId'))), createArray()), if(not(empty(parameters('entraClientId'))), createArray(createObject('name', 'ENTRA_CLIENT_ID', 'value', parameters('entraClientId'))), createArray()), if(not(empty(variables('entraClientSecretKeyVaultReference'))), createArray(createObject('name', 'ENTRA_CLIENT_SECRET', 'value', variables('entraClientSecretKeyVaultReference'))), createArray()), createArray(createObject('name', 'AUTH_REDIRECT_URI', 'value', variables('effectiveAuthRedirectUri'))), if(not(empty(parameters('adminGroupId'))), createArray(createObject('name', 'ADMIN_GROUP_ID', 'value', parameters('adminGroupId'))), createArray()), createArray(createObject('name', 'REACT_PROTOTYPE_ENABLED', 'value', 'true'), createObject('name', 'SESSION_STORE_SQL_ENABLED', 'value', if(parameters('authEnabled'), 'true', 'false')), createObject('name', 'WEBSITE_DNS_SERVER', 'value', '168.63.129.16'), createObject('name', 'WEBSITE_VNET_ROUTE_ALL', 'value', '1'), createObject('name', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'value', 'true'))))]"
         }
       },
       "dependsOn": [
@@ -693,12 +591,15 @@
       "apiVersion": "2023-08-01-preview",
       "name": "[variables('sqlServerName')]",
       "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
       "properties": {
         "administrators": {
           "administratorType": "ActiveDirectory",
           "azureADOnlyAuthentication": true,
           "login": "[parameters('sqlEntraAdminLogin')]",
-          "principalType": "User",
+          "principalType": "Group",
           "sid": "[parameters('sqlEntraAdminObjectId')]",
           "tenantId": "[tenant().tenantId]"
         },
@@ -944,6 +845,44 @@
       "dependsOn": [
         "functionApp",
         "functionStorage"
+      ]
+    },
+    "sqlServiceConnector": {
+      "type": "Microsoft.ServiceLinker/linkers",
+      "apiVersion": "2022-11-01-preview",
+      "scope": "[resourceId('Microsoft.Web/sites', variables('webAppName'))]",
+      "name": "sql_capdash",
+      "properties": {
+        "targetService": {
+          "type": "AzureResource",
+          "id": "[format('{0}/databases/{1}', variables('effectiveSqlServerId'), variables('effectiveSqlDatabaseName'))]"
+        },
+        "authInfo": {
+          "authType": "systemAssignedIdentity"
+        },
+        "clientType": "nodejs"
+      },
+      "dependsOn": [
+        "webApp"
+      ]
+    },
+    "kvServiceConnector": {
+      "type": "Microsoft.ServiceLinker/linkers",
+      "apiVersion": "2022-11-01-preview",
+      "scope": "[resourceId('Microsoft.Web/sites', variables('webAppName'))]",
+      "name": "kv_capdash",
+      "properties": {
+        "targetService": {
+          "type": "AzureResource",
+          "id": "[variables('effectiveKeyVaultId')]"
+        },
+        "authInfo": {
+          "authType": "systemAssignedIdentity"
+        },
+        "clientType": "nodejs"
+      },
+      "dependsOn": [
+        "webApp"
       ]
     },
     "keyVaultSecrets": {

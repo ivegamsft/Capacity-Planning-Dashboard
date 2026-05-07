@@ -1,0 +1,75 @@
+name: Bicep Validate
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - '.github/workflows/bicep-validate.yml'
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  validate:
+    name: Bicep Lint & What-If
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Bicep build (lint)
+        run: |
+          az bicep build --file infra/bicep/main.bicep
+          echo "✓ Bicep lint passed"
+
+      - name: Bicep what-if (change preview)
+        id: whatif
+        run: |
+          az deployment group what-if \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --template-file infra/bicep/main.bicep \
+            --parameters infra/bicep/prod.bicepparam \
+            --parameters entraTenantId='placeholder' \
+                         entraClientId='placeholder' \
+                         entraClientSecret='placeholder' \
+                         adminGroupId='placeholder' \
+                         ingestApiKey='placeholder' \
+                         sessionSecret='placeholder' \
+            --no-pretty-print \
+            --result-format FullResourcePayloads \
+            2>&1 | tee whatif-output.txt
+          echo "whatif_exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Comment what-if on PR
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '';
+            try {
+              const raw = fs.readFileSync('whatif-output.txt', 'utf8');
+              const truncated = raw.length > 30000 ? raw.slice(0, 30000) + '\n...(truncated)' : raw;
+              body = `## Bicep What-If Preview\n\`\`\`\n${truncated}\n\`\`\``;
+            } catch {
+              body = '## Bicep What-If Preview\n_No output captured._';
+            }
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });

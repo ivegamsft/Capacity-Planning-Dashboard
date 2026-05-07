@@ -11,6 +11,10 @@
     3. Executing SQL initialization script against the database
     4. Granting necessary roles to the managed identity
 
+    The SQL Server Azure AD admin is the group 'grp-sql-capdash-admins' (cfc8e389-1ac5-4fab-a0e9-c66be18b0cda).
+    This group contains both the deployment SPN (github-oidc-capdash) and the human admin
+    (a-ivega@ibuyspy.net), so both can manage the database without displacing each other.
+
     The Directory Readers step requires the caller to have the Privileged Role Administrator
     or Global Administrator role in Azure AD. In CI/CD, if that permission is absent, the
     script emits a warning and continues — the SQL step will fail until Directory Readers is
