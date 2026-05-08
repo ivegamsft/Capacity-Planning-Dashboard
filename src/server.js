@@ -1918,8 +1918,10 @@ async function ensureDatabasePrincipalAccess(pool, principalName, roles = []) {
   return normalizedRoles;
 }
 
+// Liveness probe — no auth, no DB calls, must respond in < 200 ms.
+// Used by Azure App Service health checks and deploy-workflow polling.
 app.get('/healthz', (_, res) => {
-  res.json({ status: 'ok', service: 'capacity-dashboard-api' });
+  res.json({ status: 'ok', service: 'capacity-dashboard-api', timestamp: new Date().toISOString() });
 });
 
 app.get('/api/auth/me', (req, res) => {
