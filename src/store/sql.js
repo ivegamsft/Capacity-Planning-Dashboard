@@ -865,6 +865,123 @@ async function listDashboardErrorLogs(options = {}) {
   });
 }
 
+/**
+ * Paginated query against dbo.DashboardErrorLog with optional severity, source, and
+ * date-range filters. Returns both the row slice and a total count so callers can
+ * drive cursor-free page navigation.
+ *
+ * Stack traces are intentionally excluded from the result set to avoid leaking
+ * internal implementation details in list responses.
+ *
+ * @param {object} options
+ * @param {number}  [options.offset=0]          - Row offset for OFFSET/FETCH
+ * @param {number}  [options.pageSize=50]        - Rows to fetch (1–200)
+ * @param {string}  [options.severity]           - Filter: severity column exact match
+ * @param {string}  [options.source]             - Filter: errorSource column exact match
+ * @param {Date}    [options.startDate]          - Filter: occurredAtUtc >= startDate
+ * @param {Date}    [options.endDate]            - Filter: occurredAtUtc <= endDate
+ * @param {boolean} [options.onlyUnresolved]     - Filter: isResolved = 0
+ * @returns {Promise<{ rows: object[], total: number }>}
+ */
+async function listDashboardErrorLogsPaginated(options = {}) {
+  const pool = await getSqlPool();
+  if (!pool) {
+    return { rows: [], total: 0 };
+  }
+
+  await ensureDashboardErrorLogSchema(pool);
+
+  const offset = Math.max(0, Math.trunc(Number(options.offset || 0)));
+  const pageSize = Math.max(1, Math.min(Math.trunc(Number(options.pageSize || 50)), 200));
+  const onlyUnresolved = Boolean(options.onlyUnresolved);
+  const source = options.source || null;
+  const severity = options.severity || null;
+  const startDate = options.startDate || null;
+  const endDate = options.endDate || null;
+
+  const request = pool.request();
+  request.input('offsetRows', sql.Int, offset);
+  request.input('pageSize', sql.Int, pageSize);
+
+  let where = 'WHERE 1=1';
+  if (startDate) {
+    where += ' AND occurredAtUtc >= @startDate';
+    request.input('startDate', sql.DateTime2, startDate);
+  }
+  if (endDate) {
+    where += ' AND occurredAtUtc <= @endDate';
+    request.input('endDate', sql.DateTime2, endDate);
+  }
+  if (onlyUnresolved) {
+    where += ' AND isResolved = 0';
+  }
+  if (source) {
+    where += ' AND errorSource = @source';
+    request.input('source', sql.NVarChar(64), source);
+  }
+  if (severity) {
+    where += ' AND severity = @severity';
+    request.input('severity', sql.NVarChar(16), severity);
+  }
+
+  // COUNT(*) OVER () avoids a second round-trip for the total row count.
+  // stackTrace is excluded — large text column, not needed for list views, and
+  // may contain internal call stacks that should not be surfaced broadly.
+  const result = await request.query(`
+    SELECT
+      COUNT(*) OVER () AS totalCount,
+      errorLogId,
+      errorSource,
+      errorType,
+      errorMessage,
+      occurredAtUtc,
+      severity,
+      context,
+      affectedRegion,
+      affectedSku,
+      affectedDesiredCount,
+      isResolved,
+      resolvedAtUtc,
+      resolutionNotes
+    FROM dbo.DashboardErrorLog
+    ${where}
+    ORDER BY occurredAtUtc DESC, errorLogId DESC
+    OFFSET @offsetRows ROWS FETCH NEXT @pageSize ROWS ONLY
+  `);
+
+  const recordset = result.recordset || [];
+  const total = recordset.length > 0 ? Number(recordset[0].totalCount) : 0;
+
+  const rows = recordset.map((row) => {
+    let contextObj = null;
+    if (row.context) {
+      try {
+        contextObj = JSON.parse(row.context);
+      } catch {
+        contextObj = null;
+      }
+    }
+
+    return {
+      id: Number(row.errorLogId),
+      source: row.errorSource,
+      type: row.errorType,
+      message: row.errorMessage,
+      occurredAtUtc: row.occurredAtUtc,
+      severity: row.severity,
+      context: contextObj,
+      region: row.affectedRegion,
+      sku: row.affectedSku,
+      desiredCount: row.affectedDesiredCount == null ? null : Number(row.affectedDesiredCount),
+      isResolved: Boolean(row.isResolved),
+      resolvedAtUtc: row.resolvedAtUtc,
+      resolutionNotes: row.resolutionNotes
+    };
+  });
+
+  return { rows, total };
+}
+
 async function ensureDashboardOperationLogSchema(pool) {
   const createScript = `
     IF OBJECT_ID('dbo.DashboardOperationLog', 'U') IS NULL
@@ -1933,6 +2050,7 @@ module.exports = {
   ensureDashboardErrorLogSchema,
   insertDashboardErrorLog,
   listDashboardErrorLogs,
+  listDashboardErrorLogsPaginated,
   ensureDashboardOperationLogSchema,
   logDashboardOperation,
   listDashboardOperations,

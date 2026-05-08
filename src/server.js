@@ -89,6 +89,7 @@ const {
 } = require('./store/sql');
 const { applyIndexes } = require('./maintenance/applyPerformanceIndexes');
 const { getAIQuotaProviderFromSnapshot, isAIQuotaSourceType } = require('./services/aiIngestionService');
+const { getErrorLogs } = require('./services/errorLogService');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -1950,12 +1951,24 @@ app.get('/api/capacity', async (req, res) => {
   }
 });
 
+const EXPORT_ROW_LIMIT = 50_000;
+
 app.get('/api/capacity/export', async (req, res) => {
   try {
     const filters = getCapacityFiltersFromQuery(req.query);
     const format = normalizeCapacityExportFormat(req.query.format);
     const variant = normalizeCapacityExportVariant(req.query.variant);
-    const rows = await getCapacityRows(filters);
+    const allRows = await getCapacityRows(filters);
+
+    // Cap at EXPORT_ROW_LIMIT rows and signal truncation via response header so
+    // the client can display a warning without treating the export as an error.
+    const truncated = allRows.length > EXPORT_ROW_LIMIT;
+    const rows = truncated ? allRows.slice(0, EXPORT_ROW_LIMIT) : allRows;
+    if (truncated) {
+      res.setHeader('X-Export-Truncated', 'true');
+      res.setHeader('X-Export-Total-Rows', String(allRows.length));
+    }
+
     const exportRows = buildCapacityExportRows(rows);
     const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 
@@ -2831,17 +2844,30 @@ app.post('/api/admin/errors/log', requireAuth, async (req, res) => {
 
 app.get('/api/admin/errors', requireAdmin, async (req, res) => {
   try {
-    const options = {
-      limit: req.query.limit ? Math.min(Number(req.query.limit), 200) : 50,
-      onlyUnresolved: req.query.unresolved === 'true',
+    const result = await getErrorLogs({
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      level: req.query.level || null,
+      startDate: req.query.startDate || null,
+      endDate: req.query.endDate || null,
       source: req.query.source || null,
-      severity: req.query.severity || null,
-      hoursBack: req.query.hoursBack ? Math.min(Number(req.query.hoursBack), 24 * 365) : 168
-    };
+      onlyUnresolved: req.query.unresolved === 'true'
+    });
 
-    const logs = await listDashboardErrorLogs(options);
-    res.json({ ok: true, rows: logs });
+    res.json({
+      ok: true,
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+      rows: result.rows
+    });
   } catch (err) {
+    if (err.status === 422) {
+      return res.status(422).json({
+        ok: false,
+        error: { code: err.code || 'VALIDATION_FAILED', message: err.message }
+      });
+    }
     sendErrorResponse(res, { clientMessage: 'Failed to retrieve error history.', err, scope: 'api/admin/errors' });
   }
 });
