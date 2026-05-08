@@ -1,0 +1,6 @@
+{
+  "name": "base-coat",
+  "version": "3.11.0",
+  "releaseDate": "2026-05-09",
+  "notes": "v3.11.0: Docs reorganization, memory design docs, and 10 architecture diagrams."
+}
