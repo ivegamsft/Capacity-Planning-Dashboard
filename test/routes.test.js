@@ -16,6 +16,21 @@ test('GET /healthz returns 200 with service status payload', async () => {
   assert.equal(res.body.service, 'capacity-dashboard-api');
 });
 
+test('GET /healthz includes a valid ISO 8601 timestamp and JSON content-type', async () => {
+  const before = Date.now();
+  const res = await request(app).get('/healthz');
+  const after = Date.now();
+
+  // Content-Type must be application/json
+  assert.match(res.headers['content-type'], /application\/json/);
+
+  // timestamp field must be present and parseable as an ISO 8601 date
+  assert.ok(res.body.timestamp, 'response body must include a timestamp field');
+  const ts = Date.parse(res.body.timestamp);
+  assert.ok(!isNaN(ts), 'timestamp must be a parseable ISO 8601 date string');
+  assert.ok(ts >= before && ts <= after, 'timestamp must reflect the current server time');
+});
+
 // ─── GET /api/auth/me ─────────────────────────────────────────────────────────
 
 test('GET /api/auth/me returns 200 with auth state when AUTH_ENABLED is false', async () => {
