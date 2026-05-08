@@ -89,6 +89,7 @@ const {
 } = require('./store/sql');
 const { applyIndexes } = require('./maintenance/applyPerformanceIndexes');
 const { getAIQuotaProviderFromSnapshot, isAIQuotaSourceType } = require('./services/aiIngestionService');
+const { getErrorLogs } = require('./services/errorLogService');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -2843,17 +2844,30 @@ app.post('/api/admin/errors/log', requireAuth, async (req, res) => {
 
 app.get('/api/admin/errors', requireAdmin, async (req, res) => {
   try {
-    const options = {
-      limit: req.query.limit ? Math.min(Number(req.query.limit), 200) : 50,
-      onlyUnresolved: req.query.unresolved === 'true',
+    const result = await getErrorLogs({
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      level: req.query.level || null,
+      startDate: req.query.startDate || null,
+      endDate: req.query.endDate || null,
       source: req.query.source || null,
-      severity: req.query.severity || null,
-      hoursBack: req.query.hoursBack ? Math.min(Number(req.query.hoursBack), 24 * 365) : 168
-    };
+      onlyUnresolved: req.query.unresolved === 'true'
+    });
 
-    const logs = await listDashboardErrorLogs(options);
-    res.json({ ok: true, rows: logs });
+    res.json({
+      ok: true,
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+      rows: result.rows
+    });
   } catch (err) {
+    if (err.status === 422) {
+      return res.status(422).json({
+        ok: false,
+        error: { code: err.code || 'VALIDATION_FAILED', message: err.message }
+      });
+    }
     sendErrorResponse(res, { clientMessage: 'Failed to retrieve error history.', err, scope: 'api/admin/errors' });
   }
 });
