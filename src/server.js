@@ -3180,7 +3180,7 @@ app.get('/react', (req, res) => {
   res.sendFile(path.resolve(__dirname, '..', 'react', 'index.html'));
 });
 
-app.get('/react/*', (req, res, next) => {
+app.get('/react/*path', (req, res, next) => {
   if (path.extname(req.path)) {
     return next();
   }
@@ -3196,7 +3196,7 @@ app.get('/classic', (req, res) => {
   return res.sendFile(path.resolve(__dirname, '..', 'index.html'));
 });
 
-app.get('/classic/*', (req, res) => {
+app.get('/classic/*path', (req, res) => {
   return res.sendFile(path.resolve(__dirname, '..', 'index.html'));
 });
 
@@ -3208,7 +3208,7 @@ app.get('/', (req, res) => {
   return res.redirect('/react/');
 });
 
-app.get('*', (req, res) => {
+app.get('*path', (req, res) => {
   if (AUTH_ENABLED && !getAccountFromSession(req)) {
     return sendReactAuthGate(res);
   }
