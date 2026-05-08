@@ -20,7 +20,7 @@
       document.documentElement.setAttribute('data-environment', environment);
     })();
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260416-theme2" />
+  <link rel="stylesheet" href="/styles.css?v=20260530-tokens" />
 </head>
 <body class="auth-pending">
   <header class="topbar">
@@ -158,17 +158,18 @@
                 <option value="RESTRICTED">RESTRICTED</option>
               </select>
             </label>
-            <label style="flex: 1; min-width: 320px;">Subscriptions
+            <div role="group" aria-labelledby="subscriptionFilterLabel" style="flex: 1; min-width: 320px;">
+              <span id="subscriptionFilterLabel" class="filter-field-label">Subscriptions</span>
               <div id="subscriptionFilter" class="subscription-checkbox-list" style="margin-top: 4px;"></div>
               <span id="subscriptionSelectionInfo" class="inline-note" style="display: block; margin-top: 4px; font-size: 11px;"></span>
-            </label>
+            </div>
           </div>
 
           <div class="actions" style="margin-top: 10px;">
             <button id="refreshBtn">Refresh Data</button>
             <button id="subscriptionApplyBtn">Apply Filter</button>
-            <button id="subscriptionClearBtn">Clear Subscriptions</button>
-            <button id="exportBtn">Export CSV</button>
+            <button id="subscriptionClearBtn" class="secondary">Clear Subscriptions</button>
+            <button id="exportBtn" class="secondary">Export CSV</button>
           </div>
         </div>
 
@@ -222,7 +223,7 @@
 
         <div class="view-panel" id="view-region-health">
           <div class="surface overflow-auto">
-            <h3>Region Health</h3>
+            <h2>Region Health</h2>
             <div class="report-explainer">
               <strong>Report Key</strong>
               <span>This report summarizes region-level capacity risk from the latest in-scope SKU observations (subscription + region + SKU).</span>
@@ -252,7 +253,7 @@
 
         <div class="view-panel" id="view-recommender">
           <div class="surface overflow-auto">
-            <h3>Capacity Recommender</h3>
+            <h2>Capacity Recommender</h2>
             <div class="report-explainer">
               <strong>Report Key</strong>
               <span>Enter a constrained target SKU and regions to get ranked alternatives based on similarity scoring from Get-AzVMAvailability.</span>
@@ -315,7 +316,7 @@
 
         <div class="view-panel" id="view-sku-chart">
           <div class="surface">
-            <h3>Top SKUs by Available Quota</h3>
+            <h2>Top SKUs by Available Quota</h2>
             <div class="report-explainer">
               <strong>Report Key</strong>
               <span>This chart ranks the filtered SKUs by total <strong>available quota</strong> across the selected subscriptions and regions.</span>
@@ -327,7 +328,7 @@
 
         <div class="view-panel" id="view-capacity-score">
           <div class="surface overflow-auto">
-            <h3>Regional SKU Capacity Score</h3>
+            <h2>Regional SKU Capacity Score</h2>
             <div class="filters toolbar-inline" style="margin-bottom: 10px; align-items: end;">
               <label>Desired Placement Count
                 <input id="capacityScoreDesiredCount" type="number" min="1" max="1000" value="1" />
@@ -393,7 +394,7 @@
 
         <div class="view-panel" id="view-family-summary">
           <div class="surface overflow-auto">
-            <h3>SKU Families Summary</h3>
+            <h2>SKU Families Summary</h2>
             <div class="report-explainer">
               <strong>Report Key</strong>
               <span>This summary rolls raw Azure family names into the main series labels you are likely expecting, such as <strong>D</strong>, <strong>DS</strong>, <strong>E</strong>, <strong>F</strong>, and <strong>M</strong>.</span>
@@ -420,7 +421,7 @@
 
         <div class="view-panel" id="view-region-matrix">
           <div class="surface overflow-auto">
-            <h3>Multi-Region Capacity Matrix</h3>
+            <h2>Multi-Region Capacity Matrix</h2>
             <div class="report-explainer">
               <strong>Report Key</strong>
               <span>SKU observations are grouped into main Azure compute series labels. Variant names such as memory-optimized M-series subfamilies are rolled up under <strong>M</strong>.</span>
@@ -453,7 +454,7 @@
 
         <div class="view-panel" id="view-trend">
           <div class="surface overflow-auto">
-            <h3>Capacity Trend (last 7 days)</h3>
+            <h2>Capacity Trend (last 7 days)</h2>
             <div class="report-explainer">
               <strong>Report Key</strong>
               <span>This view tracks the recent SQL snapshots for the current filter scope.</span>
@@ -497,7 +498,7 @@
 
         <div class="view-panel" id="view-ai-model-availability">
           <div class="surface overflow-auto">
-            <h3>AI Model Availability</h3>
+            <h2>AI Model Availability</h2>
             <div class="report-explainer">
               <strong>Report Key</strong>
               <span>This catalog tracks provider-aware Azure AI model availability by region using the latest <strong>dbo.AIModelAvailabilityLatest</strong> snapshot.</span>
@@ -660,7 +661,7 @@
         </div>
 
         <div class="admin-section">
-          <h3>Recent Operations</h3>
+          <h2>Recent Operations</h2>
           <p class="admin-section-desc">Latest updates from ingest, live placement refresh, and other dashboard operations.</p>
           <div id="operationHistoryContainer" class="operation-history-table-wrap">
             <table class="operation-history-table">
@@ -766,7 +767,7 @@
         </div>
 
         <div class="surface overflow-auto" style="margin-top: 16px;">
-          <h3>Discovered Quota Groups</h3>
+          <h2>Discovered Quota Groups</h2>
           <table id="quotaDiscoveryGrid">
             <thead>
               <tr>
@@ -784,7 +785,7 @@
         </div>
 
         <div class="surface overflow-auto" style="margin-top: 16px;">
-          <h3>Quota Candidates</h3>
+          <h2>Quota Candidates</h2>
           <table id="quotaCandidatesGrid">
             <thead>
               <tr>
@@ -806,7 +807,7 @@
         </div>
 
         <div class="surface overflow-auto" style="margin-top: 16px;">
-          <h3>Subscription Summary (masked keys)</h3>
+          <h2>Subscription Summary (masked keys)</h2>
           <table id="subscriptionGrid">
             <thead>
               <tr>
@@ -873,7 +874,7 @@
 
         <div class="table-card">
           <div class="table-header">
-            <h3>Proposed Move Plan</h3>
+            <h2>Proposed Move Plan</h2>
             <span>Read-only plan from the selected captured candidate run</span>
           </div>
           <table id="quotaPlanGrid">
@@ -895,7 +896,7 @@
 
         <div class="table-card" style="margin-top: 16px;">
           <div class="table-header">
-            <h3>Simulated Impact</h3>
+            <h2>Simulated Impact</h2>
             <span>Projected quota available after applying the proposed plan, without writing to Azure</span>
           </div>
           <table id="quotaSimulationGrid">
