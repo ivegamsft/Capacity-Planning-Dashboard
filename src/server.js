@@ -1952,7 +1952,7 @@ app.get('/api/capacity', async (req, res) => {
 
 const EXPORT_ROW_LIMIT = 50_000;
 
-app.get('/api/capacity/export', async (req, res) => {
+app.get('/api/capacity/export', requireAuth, async (req, res) => {
   try {
     const filters = getCapacityFiltersFromQuery(req.query);
     const format = normalizeCapacityExportFormat(req.query.format);
