@@ -1409,3 +1409,80 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Subscription flyout overlay & panel ─────────────────────────────────── */
+
+/* Full-screen semi-transparent backdrop — clicking it dismisses the panel */
+.rx-sub-flyout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 399;
+  background: rgba(17, 38, 58, 0.36);
+}
+
+/* Slide-in panel anchored to the right edge */
+.rx-sub-flyout {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 400;
+  width: min(420px, 94vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--rx-panel-strong);
+  border-left: 1px solid var(--rx-line);
+  box-shadow: -8px 0 32px rgba(17, 38, 58, 0.14);
+}
+
+/* Header row: title block + close button */
+.rx-sub-flyout__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--rx-line);
+  flex-shrink: 0;
+}
+
+.rx-sub-flyout__header h3 {
+  margin: 4px 0 2px;
+}
+
+/* Scrollable body holding the SubscriptionPicker */
+.rx-sub-flyout__body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px 20px;
+}
+
+/* Trigger button wrapper — positions the badge relative to the button */
+.rx-sub-flyout-trigger {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Count badge shown when a subset of subscriptions is selected */
+.rx-sub-flyout-trigger__badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--rx-brand);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .rx-sub-flyout {
+    width: 100%;
+  }
+}

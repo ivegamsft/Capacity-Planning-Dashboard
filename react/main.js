@@ -1938,6 +1938,106 @@ function SubscriptionPicker({ options, selectedIds, search, onSearch, onToggle, 
   );
 }
 
+// ── Subscription Flyout ──────────────────────────────────────────────────────
+// Right-side slide-in panel that wraps SubscriptionPicker.
+// Accessibility: role="dialog", aria-modal, focus trap, Escape-to-close,
+// backdrop click to dismiss.
+function SubscriptionFlyout({ open, onClose, options, selectedIds, search, onSearch, onToggle, onSelectAll, onClear, totalCount }) {
+  const panelRef = useRef(null);
+
+  // Focus first element when opened; set up Escape + Tab focus-trap while open
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    // Move focus into the panel on open
+    const firstFocusable = panel.querySelector('button, input, [tabindex]:not([tabindex="-1"])');
+    if (firstFocusable) firstFocusable.focus();
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      // Tab focus trap
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          panel.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')
+        ).filter((el) => !el.disabled);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const selectedCount = selectedIds.length;
+  const countLabel = selectedCount === totalCount
+    ? `All ${totalCount} selected`
+    : `${selectedCount} of ${totalCount} selected`;
+
+  return (
+    <>
+      {/* Semi-transparent backdrop — closes flyout on click */}
+      <div
+        className="rx-sub-flyout-overlay"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* Flyout panel */}
+      <div
+        ref={panelRef}
+        id="sub-flyout"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Subscription filter"
+        className="rx-sub-flyout"
+      >
+        <div className="rx-sub-flyout__header">
+          <div>
+            <div className="rx-kicker">Filter</div>
+            <h3>Subscriptions</h3>
+            <small className="rx-selected-count">{countLabel}</small>
+          </div>
+          {/* Close button — accessible via keyboard */}
+          <button
+            type="button"
+            className="rx-chip-button"
+            onClick={onClose}
+            aria-label="Close subscription filter panel"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="rx-sub-flyout__body">
+          <SubscriptionPicker
+            options={options}
+            selectedIds={selectedIds}
+            search={search}
+            onSearch={onSearch}
+            onToggle={onToggle}
+            onSelectAll={onSelectAll}
+            onClear={onClear}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
 function AdminIngestionView(props) {
   const {
     job,
@@ -2982,6 +3082,7 @@ function App() {
   const [activeView, setActiveView] = useState('capacity-grid');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(true);
+  const [flyoutOpen, setFlyoutOpen] = useState(false);
   const [subscriptionSearch, setSubscriptionSearch] = useState('');
   const [subscriptionOptions, setSubscriptionOptions] = useState([]);
   const [selectedSubscriptionIds, setSelectedSubscriptionIds] = useState([]);
@@ -4910,6 +5011,25 @@ function App() {
               <small>{auth?.username || 'No Entra context yet'}</small>
             </div>
             {auth?.authEnabled && auth?.isAuthenticated ? <a className="rx-link-button rx-link-button--muted" href="/auth/logout">Logout</a> : null}
+            {/* Subscription flyout trigger — shown only for non-AI views where subscriptions apply */}
+            {activeView !== 'ai-model-availability' && activeView !== 'ai-summary-report' ? (
+              <div className="rx-sub-flyout-trigger">
+                <button
+                  type="button"
+                  className="rx-button rx-button--secondary"
+                  aria-expanded={flyoutOpen}
+                  aria-controls="sub-flyout"
+                  onClick={() => setFlyoutOpen((current) => !current)}
+                >
+                  Subscriptions
+                </button>
+                {selectedSubscriptionIds.length > 0 && selectedSubscriptionIds.length < subscriptionOptions.length ? (
+                  <span className="rx-sub-flyout-trigger__badge" aria-hidden="true">
+                    {selectedSubscriptionIds.length}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <button className="rx-button rx-button--secondary" type="button" onClick={() => setSidebarOpen((current) => !current)}>{sidebarOpen ? 'Hide Reports' : 'Show Reports'}</button>
             <button className="rx-button rx-button--secondary" type="button" onClick={() => setDrawerOpen((current) => !current)}>{drawerOpen ? 'Hide Filters' : 'Show Filters'}</button>
           </div>
@@ -4937,7 +5057,7 @@ function App() {
           <label className="rx-field"><span>Deployment type</span><select value={aiModelFilters.deploymentType} onChange={(event) => setAiModelFilters((current) => ({ ...current, deploymentType: event.target.value }))}><option value="all">All deployment types</option>{aiDeploymentTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
           <label className="rx-field"><span>Fine-tuning</span><select value={aiModelFilters.fineTuning} onChange={(event) => setAiModelFilters((current) => ({ ...current, fineTuning: event.target.value }))}><option value="all">All models</option><option value="yes">Fine-tuning capable</option><option value="no">No fine-tuning</option></select></label>
           <label className="rx-check"><input type="checkbox" checked={aiModelFilters.defaultOnly} onChange={(event) => setAiModelFilters((current) => ({ ...current, defaultOnly: event.target.checked }))} />Only default models</label>
-        </DrawerFilterSection> : <>
+        </DrawerFilterSection> : (
           <DrawerFilterSection title="Capacity filters">
             <label className="rx-field"><span>Resource type</span><select value={filters.resourceType} onChange={(event) => updateFilter('resourceType', event.target.value)}>{RESOURCE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             {filters.resourceType === 'AI' && aiQuotaProviderOptions.length > 0 ? <label className="rx-field"><span>AI provider</span><select value={filters.provider} onChange={(event) => updateFilter('provider', event.target.value)}><option value="all">All verified providers</option>{aiQuotaProviderOptions.map((provider) => <option key={provider} value={provider}>{provider}</option>)}</select></label> : null}
@@ -4945,11 +5065,22 @@ function App() {
             <label className="rx-field"><span>SKU family</span><select value={filters.family} onChange={(event) => updateFilter('family', event.target.value)}><option value="all">All families</option>{filteredFamilyOptions.map((family) => <option key={family} value={family}>{formatFamilyLabel(family) || family}</option>)}</select></label>
             <label className="rx-field"><span>Availability</span><select value={filters.availability} onChange={(event) => updateFilter('availability', event.target.value)}><option value="all">All states</option><option value="OK">OK</option><option value="LIMITED">LIMITED</option><option value="CONSTRAINED">CONSTRAINED</option><option value="RESTRICTED">RESTRICTED</option></select></label>
           </DrawerFilterSection>
-          <DrawerFilterSection title="Subscriptions">
-            <SubscriptionPicker options={filteredSubscriptionOptions} selectedIds={selectedSubscriptionIds} search={subscriptionSearch} onSearch={setSubscriptionSearch} onToggle={toggleSubscription} onSelectAll={selectAllSubscriptions} onClear={clearSubscriptions} />
-          </DrawerFilterSection>
-        </>}
+        )}
       </aside>
+
+      {/* Subscription flyout — rendered outside the drawer so it overlays the full viewport */}
+      <SubscriptionFlyout
+        open={flyoutOpen}
+        onClose={() => setFlyoutOpen(false)}
+        options={filteredSubscriptionOptions}
+        selectedIds={selectedSubscriptionIds}
+        search={subscriptionSearch}
+        onSearch={setSubscriptionSearch}
+        onToggle={toggleSubscription}
+        onSelectAll={selectAllSubscriptions}
+        onClear={clearSubscriptions}
+        totalCount={subscriptionOptions.length}
+      />
     </div>
   );
 }
