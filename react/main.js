@@ -55,7 +55,8 @@ const REPORT_VIEWS = [
   { key: 'ai-summary-report', label: 'AI Summary Report', adminOnly: false },
   { key: 'ai-model-availability', label: 'AI Model Availability', adminOnly: false },
   { key: 'admin', label: 'Data Ingestion', adminOnly: true, navGroup: 'admin' },
-  { key: 'quota-workbench', label: 'Quota Workbench', adminOnly: true, navGroup: 'admin' }
+  { key: 'quota-workbench', label: 'Quota Workbench', adminOnly: true, navGroup: 'admin' },
+  { key: 'error-log', label: 'Error Log', adminOnly: true, navGroup: 'admin' }
 ];
 
 const baseRegionPresets = {
@@ -2971,6 +2972,302 @@ function ShareableQuotaReportView(props) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// ErrorLogReport — admin-only view of server-side error logs
+// API: GET /api/admin/errors?page=1&pageSize=50&level=...&startDate=...&endDate=...&source=...&onlyUnresolved=true
+// ---------------------------------------------------------------------------
+const ERROR_LEVEL_OPTIONS = [
+  { value: '', label: 'All levels' },
+  { value: 'critical', label: 'Critical' },
+  { value: 'error', label: 'Error' },
+  { value: 'warn', label: 'Warn' },
+  { value: 'info', label: 'Info' }
+];
+
+function errorLevelPillClass(level) {
+  const normalized = String(level || '').toLowerCase();
+  if (normalized === 'critical') return 'rx-pill rx-pill--constrained';
+  if (normalized === 'error') return 'rx-pill rx-pill--error';
+  if (normalized === 'warn') return 'rx-pill rx-pill--warn';
+  if (normalized === 'info') return 'rx-pill rx-pill--ok';
+  return 'rx-pill rx-pill--default';
+}
+
+function truncate(value, maxLength) {
+  const str = String(value || '');
+  return str.length > maxLength ? `${str.slice(0, maxLength)}…` : str;
+}
+
+function ErrorLogReport() {
+  // Filter state
+  const [level, setLevel] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [source, setSource] = useState('');
+  const [onlyUnresolved, setOnlyUnresolved] = useState(false);
+
+  // Applied filters (only committed on Apply)
+  const [appliedFilters, setAppliedFilters] = useState({ level: '', startDate: '', endDate: '', source: '', onlyUnresolved: false, page: 1, pageSize: 50 });
+
+  // Async state
+  const [loadState, setLoadState] = useState({ phase: 'idle', rows: [], total: 0, page: 1, pageSize: 50, error: '' });
+
+  const pageCount = Math.max(1, Math.ceil((loadState.total || 0) / (loadState.pageSize || 50)));
+
+  // Build URL from applied filters
+  function buildUrl(filters) {
+    const params = new URLSearchParams();
+    params.set('page', String(filters.page || 1));
+    params.set('pageSize', String(filters.pageSize || 50));
+    if (filters.level) params.set('level', filters.level);
+    if (filters.startDate) params.set('startDate', filters.startDate);
+    if (filters.endDate) params.set('endDate', filters.endDate);
+    if (filters.source) params.set('source', filters.source);
+    if (filters.onlyUnresolved) params.set('onlyUnresolved', 'true');
+    return `/api/admin/errors?${params.toString()}`;
+  }
+
+  // Fetch whenever appliedFilters change
+  useEffect(() => {
+    let cancelled = false;
+    setLoadState((current) => ({ ...current, phase: 'loading', error: '' }));
+
+    fetchJson(buildUrl(appliedFilters))
+      .then((payload) => {
+        if (cancelled) return;
+        setLoadState({
+          phase: 'success',
+          rows: Array.isArray(payload.rows) ? payload.rows : [],
+          total: Number(payload.total) || 0,
+          page: Number(payload.page) || appliedFilters.page,
+          pageSize: Number(payload.pageSize) || appliedFilters.pageSize,
+          error: ''
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadState((current) => ({ ...current, phase: 'error', rows: [], total: 0, error: String(err && err.message ? err.message : err) }));
+      });
+
+    return () => { cancelled = true; };
+  }, [appliedFilters]);
+
+  function handleApply(event) {
+    event.preventDefault();
+    setAppliedFilters({ level, startDate, endDate, source, onlyUnresolved, page: 1, pageSize: appliedFilters.pageSize });
+  }
+
+  function handleReset() {
+    setLevel('');
+    setStartDate('');
+    setEndDate('');
+    setSource('');
+    setOnlyUnresolved(false);
+    setAppliedFilters({ level: '', startDate: '', endDate: '', source: '', onlyUnresolved: false, page: 1, pageSize: 50 });
+  }
+
+  function goToPage(newPage) {
+    setAppliedFilters((current) => ({ ...current, page: Math.max(1, Math.min(newPage, pageCount)) }));
+  }
+
+  function changePageSize(newSize) {
+    setAppliedFilters((current) => ({ ...current, page: 1, pageSize: newSize }));
+  }
+
+  const pageStart = loadState.total > 0 ? ((loadState.page - 1) * loadState.pageSize) + 1 : 0;
+  const pageEnd = loadState.total > 0 ? Math.min(loadState.page * loadState.pageSize, loadState.total) : 0;
+
+  return (
+    <div className="rx-view-stack">
+
+      {/* Filter bar */}
+      <section className="rx-panel rx-panel--compact" aria-label="Error log filters">
+        <div className="rx-panel__header">
+          <div>
+            <h2>Error Log</h2>
+            <p>Server-side operational errors and warnings captured during ingestion, live-placement, and API request cycles. Admin access required.</p>
+          </div>
+        </div>
+
+        {/* Using a form so Enter key naturally submits */}
+        <form onSubmit={handleApply} aria-label="Filter error log entries">
+          <div className="rx-field-grid rx-field-grid--filters">
+
+            <label className="rx-field">
+              <span id="error-log-level-label">Level</span>
+              <select
+                value={level}
+                aria-labelledby="error-log-level-label"
+                onChange={(event) => setLevel(event.target.value)}
+              >
+                {ERROR_LEVEL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="rx-field">
+              <span id="error-log-source-label">Source</span>
+              <input
+                className="rx-input"
+                aria-labelledby="error-log-source-label"
+                value={source}
+                onChange={(event) => setSource(event.target.value)}
+                placeholder="ingest, live-placement, api…"
+              />
+            </label>
+
+            <label className="rx-field">
+              <span id="error-log-start-label">From date</span>
+              <input
+                type="date"
+                className="rx-input"
+                aria-labelledby="error-log-start-label"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+            </label>
+
+            <label className="rx-field">
+              <span id="error-log-end-label">To date</span>
+              <input
+                type="date"
+                className="rx-input"
+                aria-labelledby="error-log-end-label"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+              />
+            </label>
+
+          </div>
+
+          <div className="rx-inline-actions" style={{ marginTop: '12px' }}>
+            <label className="rx-check">
+              <input
+                type="checkbox"
+                checked={onlyUnresolved}
+                onChange={(event) => setOnlyUnresolved(event.target.checked)}
+                aria-label="Only show unresolved errors"
+              />
+              Unresolved only
+            </label>
+            <button className="rx-button" type="submit" disabled={loadState.phase === 'loading'}>
+              {loadState.phase === 'loading' ? 'Loading…' : 'Apply'}
+            </button>
+            <button className="rx-button rx-button--secondary" type="button" onClick={handleReset} disabled={loadState.phase === 'loading'}>
+              Reset
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {/* Error state */}
+      {loadState.phase === 'error' ? (
+        <div className="rx-banner rx-banner--error" role="alert">
+          <div className="rx-banner__message">Failed to load error log</div>
+          <div className="rx-banner__detail">{loadState.error}</div>
+        </div>
+      ) : null}
+
+      {/* Results table */}
+      <section className="rx-panel rx-panel--table" aria-label="Error log results" aria-busy={loadState.phase === 'loading'}>
+
+        {/* Loading state */}
+        {loadState.phase === 'loading' ? (
+          <div className="rx-empty" aria-live="polite" aria-label="Loading error log entries">Loading error log…</div>
+        ) : null}
+
+        {/* Empty state */}
+        {loadState.phase === 'success' && loadState.rows.length === 0 ? (
+          <div className="rx-empty" role="status">No error log entries matched the current filters.</div>
+        ) : null}
+
+        {/* Data table */}
+        {loadState.phase !== 'loading' && loadState.rows.length > 0 ? (
+          <div className="rx-table-wrap">
+            <table className="rx-table" aria-label="Error log entries">
+              <thead>
+                <tr>
+                  <th scope="col">Timestamp</th>
+                  <th scope="col">Level</th>
+                  <th scope="col">Operation</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Message</th>
+                  <th scope="col">Context</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadState.rows.map((row, index) => (
+                  /* Use index as fallback key if no stable ID; timestamp+index is good enough for read-only log */
+                  <tr key={`${row.timestamp || ''}-${index}`}>
+                    <td>{formatTimestamp(row.timestamp)}</td>
+                    <td>
+                      {/* Level badge — color-coded by severity */}
+                      <span className={errorLevelPillClass(row.level)} aria-label={`Level: ${row.level || 'unknown'}`}>
+                        {String(row.level || 'unknown').toLowerCase()}
+                      </span>
+                    </td>
+                    <td>{truncate(row.operation, 60) || '—'}</td>
+                    <td>{truncate(row.source, 40) || '—'}</td>
+                    <td title={row.message}>{truncate(row.message, 100)}</td>
+                    <td title={row.context}>{truncate(row.context, 80) || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </section>
+
+      {/* Pagination — only when there are results */}
+      {loadState.phase === 'success' && loadState.total > 0 ? (
+        <section className="rx-panel rx-panel--compact rx-panel--table" aria-label="Pagination">
+          <div className="rx-table-footer rx-table-footer--server">
+            <span className="rx-selected-count">
+              Showing {formatNumber(pageStart)}–{formatNumber(pageEnd)} of {formatNumber(loadState.total)}
+            </span>
+            <label className="rx-pagination__page-size">
+              <span className="rx-selected-count">Rows per page</span>
+              <select
+                value={String(loadState.pageSize)}
+                aria-label="Rows per page"
+                onChange={(event) => changePageSize(Number(event.target.value || 50))}
+              >
+                {[25, 50, 100, 250].map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+            <div className="rx-pagination">
+              <button
+                className="rx-button rx-button--secondary"
+                type="button"
+                aria-label="Previous page"
+                disabled={loadState.page <= 1}
+                onClick={() => goToPage(loadState.page - 1)}
+              >
+                Previous
+              </button>
+              <span className="rx-selected-count" aria-live="polite">
+                Page {formatNumber(loadState.page)} of {formatNumber(pageCount)}
+              </span>
+              <button
+                className="rx-button rx-button--secondary"
+                type="button"
+                aria-label="Next page"
+                disabled={loadState.page >= pageCount}
+                onClick={() => goToPage(loadState.page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 function App() {
   const deploymentEnvironment = useMemo(() => detectDeploymentEnvironment(), []);
   const capacityGridRequestRef = useRef(0);
@@ -4862,6 +5159,9 @@ function App() {
     }
     if (activeView === 'admin') {
       return <AdminIngestionView job={adminState.job} status={adminState.status} schedule={adminState.schedule} runtime={adminState.runtime} persistence={adminState.persistence} selectedRegionPreset={filters.regionPreset} actions={adminActions} onScheduleChange={(scope, field, value) => setAdminState((current) => ({ ...current, schedule: { ...current.schedule, [scope]: { ...current.schedule[scope], [field]: value } } }))} busy={adminState.busy} viewStatus={adminState.statusMessage} />;
+    }
+    if (activeView === 'error-log') {
+      return <ErrorLogReport />;
     }
     return <section className="rx-panel"><div className="rx-placeholder">View not implemented yet.</div></section>;
   })();
